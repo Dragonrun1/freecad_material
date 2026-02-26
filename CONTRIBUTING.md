@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Michael Cummings
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+
 # Contributing to freecad-material
 
 :+1::tada: First off, thanks for taking the time to contribute! :tada::+1:

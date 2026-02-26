@@ -5,7 +5,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 -->
 
 # License
-This project is dual licensed. You may choose either license.
+This project is dual-licensed. You may choose either license.
 SPDX-License-Identifier: MIT OR Apache-2.0
 
 
