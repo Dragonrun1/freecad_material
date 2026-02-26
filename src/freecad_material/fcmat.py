@@ -13,25 +13,22 @@ FreeCAD 1.0.2+ material files use a YAML-like format with:
   - String values quoted with double quotes
   - No multi-document support
 
-Usage:
-    from freecad_material import FCMat, load, loads, new_material
-
-    # Read a file
-    mat = FCMat.load("Gold.FCMat")
-
-    # Access sections
-    print(mat["General"]["Name"]) # "Gold test"
-    print(mat["Inherits"]["Gold"]["UUID"])
-
-    # Modify values
-    mat["General"]["Name"] = "Platinum"
-
-    # Write a file
-    mat.dump("Platinum.FCMat")
-
-    # Or work with strings
-    text = mat.dumps()
-    mat2 = FCMat.loads(text)
+Example:
+    >>> from freecad_material import FCMat, new_material
+    >>> # Create a new material
+    >>> mat = new_material("Gold", author="Alice")
+    >>> mat["General"]["Name"]
+    'Gold'
+    >>> mat["General"]["Author"]
+    'Alice'
+    >>> mat["General"]["License"]
+    'MIT OR Apache-2.0'
+    >>> # Roundtrip through string serialisation
+    >>> from freecad_material import loads, dumps
+    >>> text = dumps(mat)
+    >>> mat2 = loads(text)
+    >>> mat2["General"]["Name"]
+    'Gold'
 """
 
 import re
@@ -60,7 +57,23 @@ class FCMatError(Exception):
 
 
 class FCMatParseError(FCMatError):
-    """Raised when a file cannot be parsed."""
+    """Raised when a file cannot be parsed.
+
+    Attributes:
+        line: The 1-based line number where the error occurred, or 0 if
+            the line is unknown.
+
+    Example:
+        >>> from freecad_material import FCMatParseError
+        >>> err = FCMatParseError("bad indent", line=5)
+        >>> err.line
+        5
+        >>> "5" in str(err)
+        True
+        >>> err2 = FCMatParseError("unknown error")
+        >>> err2.line
+        0
+    """
 
     def __init__(self, message: str, line: int = 0):
         """Xx."""
@@ -76,19 +89,58 @@ _DQUOTE_VALUE_RE = re.compile(r'^"(.*)"$')
 
 
 def _unquote(value: str) -> str:
-    """Remove surrounding double-quotes from a value string, if present."""
+    r"""Remove surrounding double-quotes from a value string, if present,
+    and unescape any internal escaped quotes and backslashes.
+
+    Example:
+        >>> _unquote('"hello"')
+        'hello'
+        >>> _unquote("no quotes")
+        'no quotes'
+        >>> _unquote('"Say, \\\\"Hi\\\\""')
+        'Say, "Hi"'
+        >>> _unquote('""')
+        ''
+    """
     m = _DQUOTE_VALUE_RE.match(value)
-    return m.group(1) if m else value
+    if not m:
+        return value
+    inner = m.group(1)
+    # Unescape \" -> " and \\ -> \ (order matters — reverse of _quote)
+    return inner.replace('\\"', '"').replace("\\\\", "\\")
 
 
 def _quote(value: str) -> str:
-    """Wrap a value in double-quotes, escaping any internal double-quotes."""
+    r"""Wrap a value in double-quotes, escaping any internal double-quotes
+    and backslashes.
+
+    Example:
+        >>> _quote("hello")
+        '"hello"'
+        >>> _quote('Say "Hi"')
+        '"Say \\\\"Hi\\\\""'
+        >>> _quote("")
+        '""'
+        >>> _quote("back\\\\slash")
+        '"back\\\\\\\\slash"'
+    """
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
 
 
 def _indent_level(line: str) -> int:
-    """Return the number of leading spaces in *line*."""
+    """Return the number of leading spaces in *line*.
+
+    Example:
+        >>> _indent_level("no indent")
+        0
+        >>> _indent_level("  two spaces")
+        2
+        >>> _indent_level("    four spaces")
+        4
+        >>> _indent_level("")
+        0
+    """
     return len(line) - len(line.lstrip(" "))
 
 
@@ -105,8 +157,19 @@ class FCMat(OrderedDict):
       - A plain ``str`` (leaf value)
       - Another ``FCMat`` / ``OrderedDict`` (nested section)
 
-    The class inherits from ``OrderedDict`` so the insertion order is preserved,
-    and the sections/keys can be accessed and mutated like a normal dict.
+    The class inherits from ``OrderedDict`` so the insertion order is
+    preserved, and the sections/keys can be accessed and mutated like a
+    normal dict.
+
+    Example:
+        >>> from freecad_material import FCMat
+        >>> mat = FCMat()
+        >>> isinstance(mat, dict)
+        True
+        >>> mat["General"] = FCMat()
+        >>> mat["General"]["Name"] = "Steel"
+        >>> mat["General"]["Name"]
+        'Steel'
     """
 
     # ------------------------------------------------------------------
@@ -115,7 +178,34 @@ class FCMat(OrderedDict):
 
     @classmethod
     def loads(cls, text: str) -> "FCMat":
-        """Parse *text* (a ``str``) and return an ``FCMat`` instance."""
+        r"""Parse *text* (a ``str``) and return an ``FCMat`` instance.
+
+        Strips an optional UTF-8 BOM, skips ``---`` document markers,
+        blank lines, and comment lines starting with ``#``.
+
+        Args:
+            text: The FCMat file content as a string.
+
+        Returns:
+            A parsed ``FCMat`` instance.
+
+        Raises:
+            FCMatParseError: If the text cannot be parsed.
+
+        Example:
+            >>> from freecad_material import FCMat
+            >>> text = "---\\nGeneral:\\n  Name: \\"Copper\\"\\n"
+            >>> mat = FCMat.loads(text)
+            >>> mat["General"]["Name"]
+            'Copper'
+            >>> # BOM is handled transparently
+            >>> mat2 = FCMat.loads("\\ufeff" + text)
+            >>> mat2["General"]["Name"]
+            'Copper'
+            >>> # Empty document is valid
+            >>> FCMat.loads("---\\n")
+            FCMat()
+        """
         # Strip UTF-8 BOM if present
         if text.startswith("\ufeff"):
             text = text[1:]
@@ -124,7 +214,33 @@ class FCMat(OrderedDict):
 
     @classmethod
     def load(cls, path_or_file: Union[str, IO]) -> "FCMat":
-        """Read from *path_or_file* and return an ``FCMat`` instance."""
+        r"""Read from *path_or_file* and return an ``FCMat`` instance.
+
+        Args:
+            path_or_file: A file path string, or a file-like object opened
+                in text or binary mode.
+
+        Returns:
+            A parsed ``FCMat`` instance.
+
+        Raises:
+            FCMatParseError: If the file content cannot be parsed.
+            OSError: If the file cannot be opened.
+
+        Example:
+            >>> import io
+            >>> from freecad_material import FCMat
+            >>> text = "---\\nGeneral:\\n  Name: \\"Iron\\"\\n"
+            >>> fh = io.StringIO(text)
+            >>> mat = FCMat.load(fh)
+            >>> mat["General"]["Name"]
+            'Iron'
+            >>> # Also works with binary file-like objects
+            >>> fh2 = io.BytesIO(text.encode("utf-8"))
+            >>> mat2 = FCMat.load(fh2)
+            >>> mat2["General"]["Name"]
+            'Iron'
+        """
         if isinstance(path_or_file, str):
             with open(path_or_file, encoding="utf-8-sig") as fh:
                 text = fh.read()
@@ -139,15 +255,45 @@ class FCMat(OrderedDict):
     # ------------------------------------------------------------------
 
     def dumps(self, *, header_comment: Optional[str] = None) -> str:
-        """Serialize to a string.
+        r"""Serialize to a string.
 
-        Parameters
-        ----------
-        header_comment:
-            Optional comment line inserted after ``---``.
-            Defaults to a generic FreeCAD-style comment if *None*.
+        The output always starts with ``---`` and ends with a newline.
+        All leaf values are wrapped in double-quotes with internal
+        double-quotes and backslashes escaped.
+
+        Args:
+            header_comment: Optional comment line inserted after ``---``.
+                A leading ``#`` is added automatically if not present.
+                Pass an empty string to suppress the comment entirely.
+                Defaults to ``"# File written by freecad_material"``.
+
+        Returns:
+            The serialised FCMat content as a string.
+
+        Example:
+            >>> from freecad_material import FCMat
+            >>> mat = FCMat()
+            >>> mat["General"] = FCMat()
+            >>> mat["General"]["Name"] = "Tin"
+            >>> out = mat.dumps()
+            >>> out.startswith("---\\n")
+            True
+            >>> out.endswith("\\n")
+            True
+            >>> '"Tin"' in out
+            True
+            >>> # Roundtrip
+            >>> mat2 = FCMat.loads(out)
+            >>> mat2["General"]["Name"]
+            'Tin'
+            >>> # Custom header comment
+            >>> "# My note" in mat.dumps(header_comment="My note")
+            True
+            >>> # Suppress header comment
+            >>> lines = mat.dumps(header_comment="").splitlines()
+            >>> lines[1].startswith("#")
+            False
         """
-        # document start
         lines: list[str] = ["---"]
         if header_comment is None:
             header_comment = "# File written by freecad_material"
@@ -160,7 +306,24 @@ class FCMat(OrderedDict):
 
     def dump(self, path_or_file: Union[str, IO], **kwargs) -> None:
         """Write to *path_or_file*.
-        Keyword arguments are forwarded to ``dumps``.
+
+        Args:
+            path_or_file: A file path string, or a file-like object opened
+                in text or binary mode.
+            **kwargs: Keyword arguments forwarded to :meth:`dumps`.
+
+        Example:
+            >>> import io
+            >>> from freecad_material import FCMat
+            >>> mat = FCMat()
+            >>> mat["General"] = FCMat()
+            >>> mat["General"]["Name"] = "Zinc"
+            >>> fh = io.StringIO()
+            >>> mat.dump(fh)
+            >>> _ = fh.seek(0)
+            >>> mat2 = FCMat.loads(fh.read())
+            >>> mat2["General"]["Name"]
+            'Zinc'
         """
         text = self.dumps(**kwargs)
         if isinstance(path_or_file, str):
@@ -179,7 +342,29 @@ class FCMat(OrderedDict):
     # ------------------------------------------------------------------
 
     def get_section(self, name: str) -> Optional["FCMat"]:
-        """Return the named section as an ``FCMat``, or ``None``."""
+        """Return the named section as an ``FCMat``, or ``None``.
+
+        Args:
+            name: The section key to look up.
+
+        Returns:
+            The section as an ``FCMat`` instance, or ``None`` if the key
+            does not exist or its value is not a dict.
+
+        Example:
+            >>> from freecad_material import FCMat
+            >>> mat = FCMat()
+            >>> mat.set_value("Props", "Color", "Blue")
+            >>> sec = mat.get_section("Props")
+            >>> isinstance(sec, FCMat)
+            True
+            >>> mat.get_section("Missing") is None
+            True
+            >>> # Leaf values are not returned as sections
+            >>> mat["Leaf"] = "just a string"
+            >>> mat.get_section("Leaf") is None
+            True
+        """
         val = self.get(name)
         if isinstance(val, FCMat):
             return val
@@ -188,7 +373,31 @@ class FCMat(OrderedDict):
     def get_value(
         self, section: str, key: str, default: Optional[str] = None
     ) -> Optional[str]:
-        """Return a leaf value from ``section[key]``, or *default*."""
+        """Return a leaf value from ``section[key]``, or *default*.
+
+        Args:
+            section: The top-level section key.
+            key: The key within the section.
+            default: Value to return when the section or key is absent,
+                or when the value is not a plain string. Defaults to
+                ``None``.
+
+        Returns:
+            The string value, or *default*.
+
+        Example:
+            >>> from freecad_material import FCMat
+            >>> mat = FCMat()
+            >>> mat.set_value("General", "Name", "Iron")
+            >>> mat.get_value("General", "Name")
+            'Iron'
+            >>> mat.get_value("General", "Missing") is None
+            True
+            >>> mat.get_value("General", "Missing", "fallback")
+            'fallback'
+            >>> mat.get_value("NoSection", "Key", "fb")
+            'fb'
+        """
         sec = self.get_section(section)
         if sec is None:
             return default
@@ -200,7 +409,32 @@ class FCMat(OrderedDict):
         return default
 
     def set_value(self, section: str, key: str, value: str) -> None:
-        """Set a leaf value, creating the section if necessary."""
+        """Set a leaf value, creating the section if necessary.
+
+        If *section* does not exist, or exists but is not a dict, it is
+        replaced with a new empty ``FCMat``.
+
+        Args:
+            section: The top-level section key.
+            key: The key within the section.
+            value: The string value to set.
+
+        Example:
+            >>> from freecad_material import FCMat
+            >>> mat = FCMat()
+            >>> mat.set_value("General", "Name", "Lead")
+            >>> mat["General"]["Name"]
+            'Lead'
+            >>> # Section is created automatically
+            >>> "General" in mat
+            True
+            >>> isinstance(mat["General"], FCMat)
+            True
+            >>> # Existing values are overwritten
+            >>> mat.set_value("General", "Name", "Tin")
+            >>> mat["General"]["Name"]
+            'Tin'
+        """
         if section not in self or not isinstance(self[section], dict):
             self[section] = FCMat()
         self[section][key] = value
@@ -212,8 +446,6 @@ class FCMat(OrderedDict):
     @classmethod
     def _parse(cls, lines: list[str]) -> "FCMat":
         root = cls()
-        # Skip BOM line / YAML document marker / comment lines
-        # We do a simple state-machine parser.
         it = _LineIter(lines)
         try:
             cls._parse_block(it, root, expected_indent=0)
@@ -320,22 +552,81 @@ class _LineIter:
 
 
 def load(path_or_file: Union[str, IO]) -> FCMat:
-    """Read an FCMat file and return an :class:`FCMat` instance."""
+    r"""Read an FCMat file and return an :class:`FCMat` instance.
+
+    Args:
+        path_or_file: A file path string, or a file-like object.
+
+    Returns:
+        A parsed ``FCMat`` instance.
+
+    Example:
+        >>> import io
+        >>> from freecad_material import load
+        >>> fh = io.StringIO("---\\nGeneral:\\n  Name: \\"Nickel\\"\\n")
+        >>> mat = load(fh)
+        >>> mat["General"]["Name"]
+        'Nickel'
+    """
     return FCMat.load(path_or_file)
 
 
 def loads(text: str) -> FCMat:
-    """Parse an FCMat string and return an :class:`FCMat` instance."""
+    r"""Parse an FCMat string and return an :class:`FCMat` instance.
+
+    Args:
+        text: The FCMat file content as a string.
+
+    Returns:
+        A parsed ``FCMat`` instance.
+
+    Example:
+        >>> from freecad_material import loads
+        >>> mat = loads("---\\nGeneral:\\n  Name: \\"Cobalt\\"\\n")
+        >>> mat["General"]["Name"]
+        'Cobalt'
+    """
     return FCMat.loads(text)
 
 
 def dump(mat: FCMat, path_or_file: Union[str, IO], **kwargs) -> None:
-    """Write *mat* to a file."""
+    """Write *mat* to a file.
+
+    Args:
+        mat: The ``FCMat`` instance to serialise.
+        path_or_file: A file path string, or a file-like object.
+        **kwargs: Keyword arguments forwarded to :meth:`FCMat.dumps`.
+
+    Example:
+        >>> import io
+        >>> from freecad_material import dump, load, new_material
+        >>> mat = new_material("Chrome")
+        >>> fh = io.StringIO()
+        >>> dump(mat, fh)
+        >>> _ = fh.seek(0)
+        >>> load(fh)["General"]["Name"]
+        'Chrome'
+    """
     mat.dump(path_or_file, **kwargs)
 
 
 def dumps(mat: FCMat, **kwargs) -> str:
-    """Serialize *mat* to a string."""
+    """Serialize *mat* to a string.
+
+    Args:
+        mat: The ``FCMat`` instance to serialise.
+        **kwargs: Keyword arguments forwarded to :meth:`FCMat.dumps`.
+
+    Returns:
+        The serialised FCMat content as a string.
+
+    Example:
+        >>> from freecad_material import dumps, loads, new_material
+        >>> mat = new_material("Silver")
+        >>> text = dumps(mat)
+        >>> loads(text)["General"]["Name"]
+        'Silver'
+    """
     return mat.dumps(**kwargs)
 
 
@@ -345,11 +636,38 @@ def new_material(
     """Create a minimal FCMat with a freshly generated UUID and the given
     metadata.
 
-    Parameters
-    ----------
-    name:    Material name.
-    author:  Author string.
-    license_: License string (default ``"MIT OR Apache-2.0"``).
+    A new UUID is generated on every call.
+
+    Args:
+        name: Material name.
+        author: Author string. Omitted from the output if empty.
+        license_: License string. Defaults to ``"MIT OR Apache-2.0"``.
+
+    Returns:
+        A new ``FCMat`` instance with a ``General`` section populated.
+
+    Example:
+        >>> from freecad_material import new_material
+        >>> import uuid
+        >>> mat = new_material("Titanium", author="Bob", license_="MIT")
+        >>> mat["General"]["Name"]
+        'Titanium'
+        >>> mat["General"]["Author"]
+        'Bob'
+        >>> mat["General"]["License"]
+        'MIT'
+        >>> # UUID is a valid UUID4
+        >>> uid = uuid.UUID(mat["General"]["UUID"])
+        >>> uid.version
+        4
+        >>> # Author is absent when not supplied
+        >>> "Author" not in new_material("X")["General"]
+        True
+        >>> # Each call produces a unique UUID
+        >>> new_material("A")["General"]["UUID"] != new_material("A")[
+        ...     "General"
+        ... ]["UUID"]
+        True
     """
     mat = FCMat()
     mat["General"] = FCMat()
