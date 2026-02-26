@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Michael Cummings
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 """fcmat.py - Pure Python library for reading and writing FreeCAD FCMat material
 files.
 
@@ -10,7 +14,7 @@ FreeCAD 1.0.2+ material files use a YAML-like format with:
   - No multi-document support
 
 Usage:
-    from fcmat import FCMat
+    from freecad_material import FCMat, load, loads, new_material
 
     # Read a file
     mat = FCMat.load("Gold.FCMat")
@@ -35,6 +39,17 @@ import uuid as _uuid
 from collections import OrderedDict
 from typing import IO, Optional, Union
 
+__all__ = [
+    "FCMat",
+    "FCMatError",
+    "FCMatParseError",
+    "load",
+    "loads",
+    "dump",
+    "dumps",
+    "new_material",
+]
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -48,7 +63,7 @@ class FCMatParseError(FCMatError):
     """Raised when a file cannot be parsed."""
 
     def __init__(self, message: str, line: int = 0):
-        """ "x."""
+        """Xx."""
         super().__init__(f"Line {line}: {message}" if line else message)
         self.line = line
 
@@ -132,11 +147,10 @@ class FCMat(OrderedDict):
             Optional comment line inserted after ``---``.
             Defaults to a generic FreeCAD-style comment if *None*.
         """
-        lines: list[str] = []
-        # BOM + document start
-        lines.append("\ufeff---")
+        # document start
+        lines: list[str] = ["---"]
         if header_comment is None:
-            header_comment = "# File written by fcmat.py"
+            header_comment = "# File written by freecad_material"
         if header_comment:
             if not header_comment.startswith("#"):
                 header_comment = "# " + header_comment
@@ -146,7 +160,7 @@ class FCMat(OrderedDict):
 
     def dump(self, path_or_file: Union[str, IO], **kwargs) -> None:
         """Write to *path_or_file*.
-        Keyword arguments are forwarded to :meth:`dumps`.
+        Keyword arguments are forwarded to ``dumps``.
         """
         text = self.dumps(**kwargs)
         if isinstance(path_or_file, str):
@@ -167,14 +181,14 @@ class FCMat(OrderedDict):
     def get_section(self, name: str) -> Optional["FCMat"]:
         """Return the named section as an ``FCMat``, or ``None``."""
         val = self.get(name)
-        if isinstance(val, dict):
+        if isinstance(val, FCMat):
             return val
         return None
 
     def get_value(
         self, section: str, key: str, default: Optional[str] = None
     ) -> Optional[str]:
-        """Return a leaf value from *section*[*key*], or *default*."""
+        """Return a leaf value from ``section[key]``, or *default*."""
         sec = self.get_section(section)
         if sec is None:
             return default
@@ -289,8 +303,8 @@ class _LineIter:
 
     def peek(self) -> tuple[int, Optional[str]]:
         if self._pos >= len(self._lines):
-            return (self._pos + 1, None)
-        return (self._pos + 1, self._lines[self._pos])
+            return self._pos + 1, None
+        return self._pos + 1, self._lines[self._pos]
 
     def advance(self) -> Optional[str]:
         if self._pos >= len(self._lines):
@@ -326,7 +340,7 @@ def dumps(mat: FCMat, **kwargs) -> str:
 
 
 def new_material(
-    name: str, author: str = "", license_: str = "Public Domain"
+    name: str, author: str = "", license_: str = "MIT OR Apache-2.0"
 ) -> FCMat:
     """Create a minimal FCMat with a freshly generated UUID and the given
     metadata.
@@ -335,7 +349,7 @@ def new_material(
     ----------
     name:    Material name.
     author:  Author string.
-    license_: License string (default ``"Public Domain"``).
+    license_: License string (default ``"MIT OR Apache-2.0"``).
     """
     mat = FCMat()
     mat["General"] = FCMat()

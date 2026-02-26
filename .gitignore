@@ -1,6 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Michael Cummings
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 ### JetBrains template
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
-# Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
 
 # User-specific stuff
 .idea/
