@@ -4,7 +4,7 @@
 
 [project]
 name = "freecad-material"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pure Python library for reading, writing, and manipulating FreeCAD FCMat material files with full round-trip fidelity."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
