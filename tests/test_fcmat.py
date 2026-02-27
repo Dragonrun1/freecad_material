@@ -10,12 +10,13 @@ automatically by xdoctest / pytest --doctest-modules.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 import io
 import textwrap
 import uuid
-from collections import OrderedDict
 
 import pytest
+
 from freecad_material import (
     FCMat,
     FCMatError,
@@ -215,7 +216,7 @@ class TestLoad:
 
 
 # ---------------------------------------------------------------------------
-# Serialisation — FCMat.dumps / dumps()
+# Serialization — FCMat.dumps / dumps()
 # ---------------------------------------------------------------------------
 
 
@@ -287,7 +288,7 @@ class TestDumps:
 
 
 # ---------------------------------------------------------------------------
-# Serialisation — FCMat.dump / dump()
+# Serialization — FCMat.dump / dump()
 # ---------------------------------------------------------------------------
 
 
@@ -307,7 +308,7 @@ class TestDump:
     def test_dump_to_binary_io(self, fs, simple_mat):
         with open("/out.FCMat", "wb") as fh:
             simple_mat.dump(fh)
-        with open("/out.FCMat", "r", encoding="utf-8") as fh:
+        with open("/out.FCMat", encoding="utf-8") as fh:
             mat2 = FCMat.loads(fh.read())
         assert mat2["General"]["Name"] == "Gold test"
 
