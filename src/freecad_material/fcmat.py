@@ -23,7 +23,7 @@ Example:
     'Alice'
     >>> mat["General"]["License"]
     'MIT OR Apache-2.0'
-    >>> # Roundtrip through string serialisation
+    >>> # Roundtrip through string serialization
     >>> from freecad_material import loads, dumps
     >>> text = dumps(mat)
     >>> mat2 = loads(text)
@@ -31,10 +31,10 @@ Example:
     'Gold'
 """
 
-import re
-import uuid as _uuid
 from collections import OrderedDict
-from typing import IO, Optional, Union
+import re
+from typing import IO, Self
+import uuid as _uuid
 
 __all__ = [
     "FCMat",
@@ -85,6 +85,7 @@ class FCMatParseError(FCMatError):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+# noinspection SpellCheckingInspection
 _DQUOTE_VALUE_RE = re.compile(r'^"(.*)"$')
 
 
@@ -177,7 +178,7 @@ class FCMat(OrderedDict):
     # ------------------------------------------------------------------
 
     @classmethod
-    def loads(cls, text: str) -> "FCMat":
+    def loads(cls, text: str) -> Self:
         r"""Parse *text* (a ``str``) and return an ``FCMat`` instance.
 
         Strips an optional UTF-8 BOM, skips ``---`` document markers,
@@ -194,12 +195,12 @@ class FCMat(OrderedDict):
 
         Example:
             >>> from freecad_material import FCMat
-            >>> text = "---\\nGeneral:\\n  Name: \\"Copper\\"\\n"
-            >>> mat = FCMat.loads(text)
+            >>> txt = "---\\nGeneral:\\n  Name: \\"Copper\\"\\n"
+            >>> mat = FCMat.loads(txt)
             >>> mat["General"]["Name"]
             'Copper'
             >>> # BOM is handled transparently
-            >>> mat2 = FCMat.loads("\\ufeff" + text)
+            >>> mat2 = FCMat.loads("\\ufeff" + txt)
             >>> mat2["General"]["Name"]
             'Copper'
             >>> # Empty document is valid
@@ -213,7 +214,7 @@ class FCMat(OrderedDict):
         return cls._parse(lines)
 
     @classmethod
-    def load(cls, path_or_file: Union[str, IO]) -> "FCMat":
+    def load(cls, path_or_file: str | IO) -> Self:
         r"""Read from *path_or_file* and return an ``FCMat`` instance.
 
         Args:
@@ -230,9 +231,9 @@ class FCMat(OrderedDict):
         Example:
             >>> import io
             >>> from freecad_material import FCMat
-            >>> text = "---\\nGeneral:\\n  Name: \\"Iron\\"\\n"
-            >>> fh = io.StringIO(text)
-            >>> mat = FCMat.load(fh)
+            >>> txt = "---\\nGeneral:\\n  Name: \\"Iron\\"\\n"
+            >>> fh1 = io.StringIO(txt)
+            >>> mat = FCMat.load(fh1)
             >>> mat["General"]["Name"]
             'Iron'
             >>> # Also works with binary file-like objects
@@ -254,7 +255,7 @@ class FCMat(OrderedDict):
     # Serialisation
     # ------------------------------------------------------------------
 
-    def dumps(self, *, header_comment: Optional[str] = None) -> str:
+    def dumps(self, *, header_comment: str | None = None) -> str:
         r"""Serialize to a string.
 
         The output always starts with ``---`` and ends with a newline.
@@ -268,7 +269,7 @@ class FCMat(OrderedDict):
                 Defaults to ``"# File written by freecad_material"``.
 
         Returns:
-            The serialised FCMat content as a string.
+            The serialized FCMat content as a string.
 
         Example:
             >>> from freecad_material import FCMat
@@ -290,8 +291,8 @@ class FCMat(OrderedDict):
             >>> "# My note" in mat.dumps(header_comment="My note")
             True
             >>> # Suppress header comment
-            >>> lines = mat.dumps(header_comment="").splitlines()
-            >>> lines[1].startswith("#")
+            >>> lines_ = mat.dumps(header_comment="").splitlines()
+            >>> lines_[1].startswith("#")
             False
         """
         lines: list[str] = ["---"]
@@ -304,13 +305,13 @@ class FCMat(OrderedDict):
         self._serialise_dict(self, lines, indent=0)
         return "\n".join(lines) + "\n"
 
-    def dump(self, path_or_file: Union[str, IO], **kwargs) -> None:
+    def dump(self, path_or_file: str | IO, **kwargs) -> None:
         """Write to *path_or_file*.
 
         Args:
             path_or_file: A file path string, or a file-like object opened
                 in text or binary mode.
-            **kwargs: Keyword arguments forwarded to :meth:`dumps`.
+            **kwargs: Keyword arguments forwarded to ``dumps``.
 
         Example:
             >>> import io
@@ -318,10 +319,10 @@ class FCMat(OrderedDict):
             >>> mat = FCMat()
             >>> mat["General"] = FCMat()
             >>> mat["General"]["Name"] = "Zinc"
-            >>> fh = io.StringIO()
-            >>> mat.dump(fh)
-            >>> _ = fh.seek(0)
-            >>> mat2 = FCMat.loads(fh.read())
+            >>> fh1 = io.StringIO()
+            >>> mat.dump(fh1)
+            >>> _ = fh1.seek(0)
+            >>> mat2 = FCMat.loads(fh1.read())
             >>> mat2["General"]["Name"]
             'Zinc'
         """
@@ -341,7 +342,7 @@ class FCMat(OrderedDict):
     # Convenience accessors
     # ------------------------------------------------------------------
 
-    def get_section(self, name: str) -> Optional["FCMat"]:
+    def get_section(self, name: str) -> Self | None:
         """Return the named section as an ``FCMat``, or ``None``.
 
         Args:
@@ -371,8 +372,8 @@ class FCMat(OrderedDict):
         return None
 
     def get_value(
-        self, section: str, key: str, default: Optional[str] = None
-    ) -> Optional[str]:
+        self, section: str, key: str, default: str | None = None
+    ) -> str | None:
         """Return a leaf value from ``section[key]``, or *default*.
 
         Args:
@@ -411,7 +412,7 @@ class FCMat(OrderedDict):
     def set_value(self, section: str, key: str, value: str) -> None:
         """Set a leaf value, creating the section if necessary.
 
-        If *section* does not exist, or exists but is not a dict, it is
+        If *section* does not exist or exist but is not a dict, it is
         replaced with a new empty ``FCMat``.
 
         Args:
@@ -444,7 +445,7 @@ class FCMat(OrderedDict):
     # ------------------------------------------------------------------
 
     @classmethod
-    def _parse(cls, lines: list[str]) -> "FCMat":
+    def _parse(cls, lines: list[str]) -> Self:
         root = cls()
         it = _LineIter(lines)
         try:
@@ -533,12 +534,12 @@ class _LineIter:
         self._lines = lines
         self._pos = 0
 
-    def peek(self) -> tuple[int, Optional[str]]:
+    def peek(self) -> tuple[int, str | None]:
         if self._pos >= len(self._lines):
             return self._pos + 1, None
         return self._pos + 1, self._lines[self._pos]
 
-    def advance(self) -> Optional[str]:
+    def advance(self) -> str | None:
         if self._pos >= len(self._lines):
             return None
         line = self._lines[self._pos]
@@ -551,8 +552,8 @@ class _LineIter:
 # ---------------------------------------------------------------------------
 
 
-def load(path_or_file: Union[str, IO]) -> FCMat:
-    r"""Read an FCMat file and return an :class:`FCMat` instance.
+def load(path_or_file: str | IO) -> FCMat:
+    r"""Read an FCMat file and return an ``FCMat`` instance.
 
     Args:
         path_or_file: A file path string, or a file-like object.
@@ -572,7 +573,7 @@ def load(path_or_file: Union[str, IO]) -> FCMat:
 
 
 def loads(text: str) -> FCMat:
-    r"""Parse an FCMat string and return an :class:`FCMat` instance.
+    r"""Parse an FCMat string and return an ``FCMat`` instance.
 
     Args:
         text: The FCMat file content as a string.
@@ -589,20 +590,20 @@ def loads(text: str) -> FCMat:
     return FCMat.loads(text)
 
 
-def dump(mat: FCMat, path_or_file: Union[str, IO], **kwargs) -> None:
+def dump(mat: FCMat, path_or_file: str | IO, **kwargs) -> None:
     """Write *mat* to a file.
 
     Args:
-        mat: The ``FCMat`` instance to serialise.
+        mat: The ``FCMat`` instance to serialize.
         path_or_file: A file path string, or a file-like object.
-        **kwargs: Keyword arguments forwarded to :meth:`FCMat.dumps`.
+        **kwargs: Keyword arguments forwarded to ``FCMat.dumps``.
 
     Example:
         >>> import io
         >>> from freecad_material import dump, load, new_material
-        >>> mat = new_material("Chrome")
+        >>> mat_ = new_material("Chrome")
         >>> fh = io.StringIO()
-        >>> dump(mat, fh)
+        >>> dump(mat_, fh)
         >>> _ = fh.seek(0)
         >>> load(fh)["General"]["Name"]
         'Chrome'
@@ -614,16 +615,16 @@ def dumps(mat: FCMat, **kwargs) -> str:
     """Serialize *mat* to a string.
 
     Args:
-        mat: The ``FCMat`` instance to serialise.
-        **kwargs: Keyword arguments forwarded to :meth:`FCMat.dumps`.
+        mat: The ``FCMat`` instance to serialize.
+        **kwargs: Keyword arguments forwarded to ``FCMat.dumps``.
 
     Returns:
-        The serialised FCMat content as a string.
+        The serialized FCMat content as a string.
 
     Example:
         >>> from freecad_material import dumps, loads, new_material
-        >>> mat = new_material("Silver")
-        >>> text = dumps(mat)
+        >>> mat_ = new_material("Silver")
+        >>> text = dumps(mat_)
         >>> loads(text)["General"]["Name"]
         'Silver'
     """
@@ -649,15 +650,15 @@ def new_material(
     Example:
         >>> from freecad_material import new_material
         >>> import uuid
-        >>> mat = new_material("Titanium", author="Bob", license_="MIT")
-        >>> mat["General"]["Name"]
+        >>> mat_ = new_material("Titanium", author="Bob", license_="MIT")
+        >>> mat_["General"]["Name"]
         'Titanium'
-        >>> mat["General"]["Author"]
+        >>> mat_["General"]["Author"]
         'Bob'
-        >>> mat["General"]["License"]
+        >>> mat_["General"]["License"]
         'MIT'
         >>> # UUID is a valid UUID4
-        >>> uid = uuid.UUID(mat["General"]["UUID"])
+        >>> uid = uuid.UUID(mat_["General"]["UUID"])
         >>> uid.version
         4
         >>> # Author is absent when not supplied
